@@ -126,7 +126,10 @@ int main(int argc, char** argv)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    int nums[8] = {1, 2, 4, 8, 16, 32, 64, 128};
+    if (!rank) {
+        printf("Number of threads: %d\n", size);
+    }
+
     int nis[5] = {16, 40, 180, 800, 1600};
     int njs[5] = {18, 50, 190, 900, 1800};
     int nks[5] = {22, 70, 210, 1100, 2200};
@@ -140,64 +143,67 @@ int main(int argc, char** argv)
     int nl = NL;
     MPI_Barrier(MPI_COMM_WORLD);
 
-    ni = nis[0];
-    nk = nks[0];
-    nj = njs[0];
-    nl = nls[0];
+    for (int i = 0; i < 5; i++) {
+        ni = nis[i];
+        nk = nks[i];
+        nj = njs[i];
+        nl = nls[i];
 
-    double alpha;
-    double beta;
-    double (*tmp)[ni][nj] = NULL;
-    double (*A)[ni][nk] = NULL;
-    double (*B)[nk][nj] = NULL;
-    double (*C)[nj][nl] = NULL;
-    double (*D)[ni][nl] = NULL;
-    tmp = (double (*)[ni][nj]) malloc((ni) * (nj) * sizeof(double));
-    A = (double (*)[ni][nk]) malloc((ni) * (nk) * sizeof(double));
-    B = (double (*)[nk][nj]) malloc((nk) * (nj) * sizeof(double));
-    C = (double (*)[nj][nl]) malloc((nj) * (nl) * sizeof(double));
-    D = (double (*)[ni][nl]) malloc((ni) * (nl) * sizeof(double));
+        double alpha;
+        double beta;
+        double (*tmp)[ni][nj] = NULL;
+        double (*A)[ni][nk] = NULL;
+        double (*B)[nk][nj] = NULL;
+        double (*C)[nj][nl] = NULL;
+        double (*D)[ni][nl] = NULL;
+        tmp = (double (*)[ni][nj]) malloc((ni) * (nj) * sizeof(double));
+        A = (double (*)[ni][nk]) malloc((ni) * (nk) * sizeof(double));
+        B = (double (*)[nk][nj]) malloc((nk) * (nj) * sizeof(double));
+        C = (double (*)[nj][nl]) malloc((nj) * (nl) * sizeof(double));
+        D = (double (*)[ni][nl]) malloc((ni) * (nl) * sizeof(double));
 
-    init_array(ni, nj, nk, nl, &alpha, &beta,
-               *A,
-               *B,
-               *C,
-               *D,
-               *tmp);
-    double start = MPI_Wtime();
-    int max_row = ni/size;
-    kernel_2mm(ni, nj, nk, nl,
-               alpha, beta,
-               rank, max_row,
-               *tmp,
-               *A,
-               *B,
-               *C,
-               *D);
+        init_array(ni, nj, nk, nl, &alpha, &beta,
+                   *A,
+                   *B,
+                   *C,
+                   *D,
+                   *tmp);
+        double start = MPI_Wtime();
+        int max_row = ni/size;
+        kernel_2mm(ni, nj, nk, nl,
+                   alpha, beta,
+                   rank, max_row,
+                   *tmp,
+                   *A,
+                   *B,
+                   *C,
+                   *D);
 
-    double end = MPI_Wtime();
-    if (rank == 0){
-        printf("Dataset %s:\nTime = %fs\n", names[0], end-start);
-        fflush(stdin);
+        double end = MPI_Wtime();
+        if (rank == 0){
+            printf("Dataset %s:\nTime = %fs\n", names[i], end-start);
+            fflush(stdin);
+        }
+
+        if (argc > 42 && !strcmp(argv[0], "")) print_array(ni, nl, *D);
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (tmp != NULL)
+            free((void *) tmp);
+        tmp = NULL;
+        if (A != NULL)
+            free((void *) A);
+        A = NULL;
+        if (B != NULL)
+            free((void *) B);
+        B = NULL;
+        if (C != NULL)
+            free((void *) C);
+        C = NULL;
+        if (D != NULL)
+            free((void *) D);
+        D = NULL;
     }
 
-    if (argc > 42 && !strcmp(argv[0], "")) print_array(ni, nl, D);
-    MPI_Barrier(MPI_COMM_WORLD);
-    if (tmp != NULL)
-        free((void *) tmp);
-    tmp = NULL;
-    if (A != NULL)
-        free((void *) A);
-    A = NULL;
-    if (B != NULL)
-        free((void *) B);
-    B = NULL;
-    if (C != NULL)
-        free((void *) C);
-    C = NULL;
-    if (D != NULL)
-        free((void *) D);
-    D = NULL;
 
 
     MPI_Finalize();
